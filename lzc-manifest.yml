@@ -1,0 +1,90 @@
+# motionEye 监控中心 · 懒猫微服运行清单（LPK V2）
+# 目标环境：lzcos 1.6.x / lzc-cli 2.0.9
+# 上游：motioneye-project/motioneye 0.44.0（官方镜像 ghcr.io/motioneye-project/motioneye:0.44.0，经 copy-image 转存）
+application:
+  subdomain: motioneye
+  upstreams:
+    - location: /
+      backend: http://motioneye.cloud.lazycat.app.motioneye.lzcapp:8765
+  health_check:
+    test_url: http://motioneye.cloud.lazycat.app.motioneye.lzcapp:8765/
+    start_period: 180s
+    timeout: 15s
+services:
+  # motionEye 主服务：motion（守护进程）+ motioneye（Web 配置界面，监听 8765）。
+  # 配置落在 /etc/motioneye，录像/图片落在 /var/lib/motioneye，两者都映射到持久目录。
+  motioneye:
+    image: registry.lazycat.cloud/wans/motioneye-project/motioneye:0a43060ec0de2cd3
+    # 镜像默认以 root 运行，并需要写 /etc/motioneye 与 /var/lib/motioneye；
+    # 平台 bind 挂载在非 root 下会因 idmapped 映射失败，这里固定 root（与 zammad/rustfs 同处理）。
+    user: "0"
+    environment:
+      - TZ=Asia/Shanghai
+    # 首次启动把界面语言种成中文：上游默认 en，而语言写在 motion.conf 的 @lang 键里
+    # （meyectl.py 只在 @lang 指向 locale/<lang>/LC_MESSAGES/motioneye.mo 时才生效，镜像自带 zh）。
+    # 只在缺失时追加，用户自己改过的语言不会被覆盖。
+    setup_script: |
+      CONF=/lzcapp/var/data/motioneye/config/motion.conf
+      mkdir -p /lzcapp/var/data/motioneye/config /lzcapp/var/data/motioneye/media
+      touch "$CONF"
+      grep -q '^@lang ' "$CONF" || printf '@lang zh\n' >> "$CONF"
+      # 懒猫入口本身已有 SSO（未登录访问会被平台拦到登录页），而 motionEye 0.44 上游又加了一层
+      # 「远程访问必须应用内登录」，两层叠加会让用户卡在应用自己的登入框上（上游也没有默认口令）。
+      # 注意：只补 auth 装饰器是不够的 —— 前端启动时先 GET login/，那个处理器不经过装饰器，
+      # 它自己读 self.current_user，没有 cookie 就是 None → 401 → 前端弹登录框。所以这一版把根上的
+      # get_current_user() 在没有会话时兜成 admin（平台 SSO 作为唯一闸门），再兜一层 login/。
+      for BASE in /usr/local/lib/python3.*/dist-packages/motioneye/handlers/base.py; do
+        [ -f "$BASE" ] || continue
+        if grep -q 'LZC_SSO_FALLBACK' "$BASE"; then continue; fi
+        # 只改 get_current_user() 结尾那个 8 空格缩进的 return None：它是 _handle_request_exception
+        # 之前（允许中间有空白行）最近的一个，HMAC 分支里更深缩进的 return None 保持原样。
+        LN=$(grep -n '^    def _handle_request_exception' "$BASE" | cut -d: -f1)
+        if [ -n "$LN" ]; then
+          TGT=$(head -n "$((LN-1))" "$BASE" | grep -n '^        return None$' | tail -1 | cut -d: -f1)
+          if [ -n "$TGT" ]; then sed -i "${TGT}s/.*/        return \"admin\"  # LZC_SSO_FALLBACK/" "$BASE"; fi
+        fi
+      done
+      for LOGIN in /usr/local/lib/python3.*/dist-packages/motioneye/handlers/login.py; do
+        [ -f "$LOGIN" ] || continue
+        grep -q 'LZC_SSO_FALLBACK' "$LOGIN" && continue
+        sed -i 's/^        user = self\.current_user$/        user = self.current_user or "admin"  # LZC_SSO_FALLBACK/' "$LOGIN"
+      done
+      # 录像编码器（0.44.0-5 修）：motionEye 只在「ffmpeg 编译进了 h264_v4l2m2m」时就把新摄像头
+      # 的 movie_codec 设成硬件编码 mp4:h264_v4l2m2m，完全不看机器上有没有 V4L2 设备。微服容器里
+      # 没有 /dev/video*，motion 于是每秒刷「ffmpeg_set_codec: Could not open codec Invalid argument」
+      # 且一个录像文件都不落盘 —— 用户看到的是「录像开关打开了但没有文件」。
+      # a) 判断硬件编码可用性时要求真的存在 V4L2 设备（新建摄像头才会退回软件编码 mp4:h264/libx264）。
+      # 这里用 sed 在函数首行后插一段 guard，而不是用 python 改文件：setup_script 是 YAML 块状标量，
+      # 比它缩进更浅的行会被当成新节点，heredoc 里贴不了零缩进的 python 代码。
+      SNIP=/tmp/lzc_v4l2m2m_guard.snippet
+      printf '%s\n' \
+        '    # LZC_V4L2M2M_GUARD: ffmpeg 里有这个编码器不等于机器上有 V4L2 mem2mem 设备' \
+        '    import glob' \
+        '' \
+        '    if not glob.glob("/dev/video*"):' \
+        '        return False' \
+        '' \
+        > "$SNIP"
+      for MCTL in /usr/local/lib/python3.*/dist-packages/motioneye/motionctl.py; do
+        [ -f "$MCTL" ] || continue
+        grep -q 'LZC_V4L2M2M_GUARD' "$MCTL" && continue
+        sed -i '/^def has_h264_v4l2m2m_support():$/r '"$SNIP" "$MCTL"
+      done
+      # b) 已经建好的摄像头（老版本数据目录/用户自己建的）里，把不可用的硬件编码器换成软件编码
+      if ! ls /dev/video* >/dev/null 2>&1; then
+        for CAMCONF in /lzcapp/var/data/motioneye/config/camera-*.conf; do
+          [ -f "$CAMCONF" ] || continue
+          sed -i -E 's/^movie_codec (mp4|mkv):(h264_v4l2m2m|h264_omx|hevc_v4l2m2m|hevc_omx)$/movie_codec mp4:h264/' "$CAMCONF"
+        done
+      fi
+    binds:
+      - /lzcapp/var/data/motioneye/config:/etc/motioneye
+      - /lzcapp/var/data/motioneye/media:/var/lib/motioneye
+    healthcheck:
+      # 镜像里没有 wget/curl（alpine 精简版），用 python3 发一次 HTTP 探活：
+      # 只要 8765 端口回了 HTTP 响应就算健康（不校验内容，避免受应用内登录态影响）。
+      test: [CMD-SHELL, "python3 -c \"import socket;s=socket.create_connection(('127.0.0.1',8765),5);s.sendall(b'GET / HTTP/1.0\\r\\nHost: x\\r\\n\\r\\n');d=s.recv(64);raise SystemExit(0 if b'HTTP' in d else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
