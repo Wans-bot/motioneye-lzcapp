@@ -1,5 +1,5 @@
 package: cloud.lazycat.app.motioneye
-version: 0.44.0
+version: 0.44.0-6
 name: motioneye
 description: 把家里的网络摄像头集中管起来：实时预览、录像、移动侦测告警，录像存在自己的微服上
 author: motioneye-project
@@ -15,7 +15,8 @@ locales:
     name: motionEye 摄像头监控
     description: 把家里的网络摄像头集中管起来：实时预览、定时/移动侦测录像、画面变化告警，录像直接存在自己的微服上，不上传任何云端。
     usage: >
-      motionEye 是一个摄像头监看与录像中心：把家里几台网络摄像头（RTSP/HTTP/MJPEG 流的设备，比如大部分 IP 摄像头、旧手机改的摄像头、树莓派摄像头）都接到一个页面上看，顺便按计划录像、按画面变化报警。
+      motionEye 是一个摄像头监看与录像中心：把家里几台网络摄像头（RTSP/HTTP/MJPEG 流的设备，比如大部分
+      IP 摄像头、旧手机改的摄像头、树莓派摄像头）都接到一个页面上看，顺便按计划录像、按画面变化报警。
 
 
       首次使用：
@@ -23,7 +24,6 @@ locales:
       1. 打开应用就是摄像头列表页，点右上角菜单里的「添加摄像头」。
 
       2. 摄像头类型选 **Network Camera**，在「视频设备」里填摄像头的**视频流地址**：
-
 
          - 支持 RTSP（多数 IP 摄像头，如 `rtsp://用户名:密码@192.168.31.50:554/stream1`）
 
@@ -46,46 +46,62 @@ locales:
       说明：
 
       - 本应用运行在桥接网络里，**只能接网络摄像头（RTSP/HTTP/MJPEG 流）**；直接插在微服上的 USB 摄像头、
-
         摄像头自带的私有协议/加密协议（部分厂商 App 专用协议）无法接入。
 
-      - 摄像头画质/分辨率由摄像头自己决定，motionEye 只是拉流，不会转码。 - 实时画面有两种取法：**Network Camera（RTSP）** 由微服自己拉流、按帧刷新，远程访问也能看，**也只有这种类型能录像**；
-
+      - 摄像头画质/分辨率由摄像头自己决定，motionEye 只是拉流，不会转码。
+      - 实时画面有两种取法：**Network Camera（RTSP）** 由微服自己拉流、按帧刷新，远程访问也能看，**也只有这种类型能录像**；
         选 **Simple MJPEG** 时画面是浏览器直连摄像头取的，只有在同一局域网里才能看，而且不录像。
 
       - 每个摄像头的「录像」开关默认是关的；打开后按 H.264 存成 mp4（缩略图同目录），编码在微服 CPU 上做，
-
         几路同时录会占用一些 CPU。
 
       - 应用内不需要单独登录：访问入口已经由微服的账号体系保护。
 
       - 界面默认中文；想换语言到「设置 → 常规 → Language」里选，改完会重新加载界面。
-
   en-US:
     name: motionEye
-    description: Self-hosted NVR for your network cameras — live view, recordings and motion alerts, stored on your own box.
+    description: Self-hosted NVR for your network cameras — live view, recordings and
+      motion alerts, stored on your own box.
     usage: >
-      motionEye is a camera monitoring and recording hub: point it at the network cameras on your LAN (RTSP, HTTP or MJPEG streams) and watch them all on one page, with scheduled recording and motion-triggered alerts.
+      motionEye is a camera monitoring and recording hub: point it at the network
+      cameras on your LAN (RTSP, HTTP or MJPEG streams) and watch them all on one
+      page, with scheduled recording and motion-triggered alerts.
 
 
       Getting started:
 
       1. Open the app — you land on the camera list; use the menu to "Add Camera".
 
-      2. Choose **Network Camera** and fill in the camera's **stream URL** in the Video Device section, e.g. `rtsp://user:pass@192.168.31.50:554/stream1` (RTSP, most IP cameras) or `http://192.168.31.50/video.mjpg` (HTTP/MJPEG).
-
+      2. Choose **Network Camera** and fill in the camera's **stream URL** in the
+      Video Device section, e.g. `rtsp://user:pass@192.168.31.50:554/stream1`
+      (RTSP, most IP cameras) or `http://192.168.31.50/video.mjpg` (HTTP/MJPEG).
          The camera must be on the same LAN as your box.
       3. Save, then open the camera to see the live view. The "Video Device → subfolder" field shows where
-
          recordings are written.
-      4. Enable the Video Device and Motion Detection switches on that camera to record and alert; tune the motion threshold/framerate as needed.
+      4. Enable the Video Device and Motion Detection switches on that camera to
+      record and alert; tune the motion threshold/framerate as needed.
 
 
       Files:
 
-      - Recordings and stills are kept in the app data directory (`/var/lib/motioneye`) and survive restarts and upgrades; browse and play them from the Files view. - Long recordings use a lot of space, so cap retention in Settings → Storage.
+      - Recordings and stills are kept in the app data directory (`/var/lib/motioneye`)
+      and survive restarts and upgrades; browse and play them from the Files view.
+      - Long recordings use a lot of space, so cap retention in Settings → Storage.
 
       Notes:
 
-      - The app runs in bridge networking and supports **network cameras only** (RTSP/HTTP/MJPEG). USB cameras plugged into the box and vendor-proprietary encrypted protocols cannot be used. - The stream is passed through as-is; motionEye does not transcode. - Live view works two ways: a **Network Camera (RTSP)** stream is pulled by the box and refreshed frame by frame, so it also works when you are away from home — and it is the only type that can record. A **Simple MJPEG camera** is loaded straight by your browser, so it only shows up on the same LAN and never records. - Each camera's "Movies" switch is off by default; when on, video is written as H.264 mp4 (thumbnails alongside). Encoding uses the box CPU, so several simultaneous recordings do cost some CPU. - Access is already protected by your Lazycat account; the app does not ask for a separate login. - The UI comes up in Chinese by default; pick another language in Settings → General → Language.
-
+      - The app runs in bridge networking and supports **network cameras only**
+      (RTSP/HTTP/MJPEG). USB cameras plugged into the box and vendor-proprietary
+      encrypted protocols cannot be used.
+      - The stream is passed through as-is; motionEye does not transcode.
+      - Live view works two ways: a **Network Camera (RTSP)** stream is pulled by the box and
+      refreshed frame by frame, so it also works when you are away from home — and it is the only
+      type that can record. A **Simple MJPEG camera** is loaded straight by your browser, so it
+      only shows up on the same LAN and never records.
+      - Each camera's "Movies" switch is off by default; when on, video is written as H.264 mp4
+      (thumbnails alongside). Encoding uses the box CPU, so several simultaneous recordings do
+      cost some CPU.
+      - Access is already protected by your Lazycat account; the app does not
+      ask for a separate login.
+      - The UI comes up in Chinese by default; pick another language in
+      Settings → General → Language.
