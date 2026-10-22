@@ -22,18 +22,7 @@ images:
     service: motioneye
     source: ghcr.io/motioneye-project/motioneye
     channel: stable
-    tag_regex: '^\d+\.\d+\.\d+
-stores:
-  official:
-    enabled: true
-    skip_if_version_exists: true
-    create_if_missing: true
-    changelog_locales:
-      - zh
-      - en
-  private:
-    enabled: false
-
+    tag_regex: '^\d+\.\d+\.\d+$'
     sort: semver
     delivery:
       mode: lazycat
