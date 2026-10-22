@@ -4,7 +4,7 @@ project:
   root: .
   build_config: lzc-build.yml
   package_file: package.yml
-  output: dist/motioneye.lpk
+  output: out/motioneye.lpk
   target_arch: amd64
 
 update:
@@ -12,12 +12,13 @@ update:
   allow_downgrade: false
   version_source:
     type: image
-    image: app
+    image: motioneye
+
 build:
   run_buildscript: false
 
 images:
-  - id: app
+  - id: motioneye
     target: service
     service: motioneye
     source: ghcr.io/motioneye-project/motioneye
@@ -30,10 +31,5 @@ images:
 stores:
   official:
     enabled: true
-    skip_if_version_exists: true
-    create_if_missing: true
-    changelog_locales:
-      - zh
-      - en
   private:
     enabled: false
