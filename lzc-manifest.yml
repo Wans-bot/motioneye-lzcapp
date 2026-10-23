@@ -14,6 +14,7 @@ services:
   # motionEye 主服务：motion（守护进程）+ motioneye（Web 配置界面，监听 8765）。
   # 配置落在 /etc/motioneye，录像/图片落在 /var/lib/motioneye，两者都映射到持久目录。
   motioneye:
+    # upstream: ghcr.io/motioneye-project/motioneye:0.44.0
     image: registry.lazycat.cloud/wans/motioneye-project/motioneye:0a43060ec0de2cd3
     # 镜像默认以 root 运行，并需要写 /etc/motioneye 与 /var/lib/motioneye；
     # 平台 bind 挂载在非 root 下会因 idmapped 映射失败，这里固定 root（与 zammad/rustfs 同处理）。
